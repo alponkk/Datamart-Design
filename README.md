@@ -1,6 +1,4 @@
-# Datamart-Design
-
-# **ETL Process and Datamart Design for Recruitment Data Engineer Test**
+# **ETL Process and Data Mart Design**
 
 ## **Overview**
 
@@ -22,6 +20,9 @@ This project demonstrates the implementation of an ETL process to build a dimens
   - `master_materials`
   - `master_activities`
   - `entity_tags`
+- **Data Source Relevant Tables Schema**
+![image](https://github.com/user-attachments/assets/dfbbda83-dbbc-4dd7-b376-9b9f738a630b)
+
 
 ### **Target Database**
 - **Database**: PostgreSQL
@@ -38,6 +39,49 @@ This project demonstrates the implementation of an ETL process to build a dimens
 
 ### **1. Extract**
 The `extract_data` function queries the source database to pull data from multiple tables. The query uses SQL JOINs to combine relevant data into a single "One Big Table" extract.
+Extracted data:
+```sql
+SELECT 
+            e.id AS entity_id,
+            e.name AS entity_name,
+            et.title AS entity_tag,
+            p.name AS province_,
+            r.name AS regency,
+            mm.id AS material_id,
+            mm.name AS material_name,	
+            mm.is_vaccine AS vaccine_status,
+            mm.is_stockcount AS stockcount_status,
+            mm.is_addremove AS addremove_status,
+            mm.is_openvial AS openvial_status,
+            ma.id AS activity_id,
+            ma.name AS activity_name,
+            s.updatedAt AS date,
+            b.expired_date AS expired_date,
+            s.qty AS on_hand_stock,
+            s.allocated + s.in_transit AS unreceived_stock
+        FROM 
+            stocks s
+        JOIN
+            batches b ON s.batch_id = b.id 
+        JOIN 
+            entity_master_material_activities emma ON s.material_entity_id = emma.id
+        JOIN 
+            entity_has_master_materials ehmm ON s.material_entity_id = ehmm.id
+        JOIN 
+            entities e ON ehmm.entity_id = e.id
+        JOIN 
+            provinces p ON e.province_id = p.id 
+        JOIN 
+            regencies r ON e.regency_id = r.id
+        JOIN 
+            entity_entity_tags eet ON e.id = eet.entity_id 
+        JOIN 
+            entity_tags et ON eet.entity_tag_id = et.id 
+        JOIN 
+            master_materials mm ON ehmm.master_material_id = mm.id
+        JOIN 
+            master_activities ma ON s.activity_id = ma.id;
+```
 
 #### Query Highlights:
 - Ensures all required columns for the datamart are included.
@@ -75,7 +119,7 @@ The `load_data` function inserts the transformed data into the PostgreSQL datama
 
 ## **Datamart Design**
 
-### **Dimensional Schema**
+### **Star Schema**
 #### **Dimension Tables**
 1. **`dim_entities`**:
    - `entity_id` (Primary Key)
@@ -96,10 +140,6 @@ The `load_data` function inserts the transformed data into the PostgreSQL datama
    - `activity_id` (Primary Key)
    - `activity_name`
 
-4. **`dim_dates`**:
-   - `date_id` (Primary Key)
-   - `date`
-   - `expired_date`
 
 #### **Fact Table**
 1. **`fact_stocks`**:
@@ -111,6 +151,9 @@ The `load_data` function inserts the transformed data into the PostgreSQL datama
    - `on_hand_stock`
    - `unreceived_stock`
 
+### **Data Mart Architecture & Schema**
+![image](https://github.com/user-attachments/assets/ecc7e2da-9007-47dd-af0f-fbe02d368395)
+
 ---
 
 ## **DAG Implementation**
@@ -121,7 +164,7 @@ The DAG, `data_mart_etl_dag`, defines the ETL workflow:
 2. **Transform Task**:
    - Cleans and normalizes the extracted data for the target schema.
 3. **Load Task**:
-   - Inserts data into PostgreSQL using `ON CONFLICT DO NOTHING` to prevent duplication.
+   - Inserts data into PostgreSQL (via SQLAlchemy) using `ON CONFLICT DO NOTHING` to prevent duplication.
 
 The script ensures:
 - Logs are available for debugging and monitoring.
@@ -157,15 +200,13 @@ The script ensures:
 
 ## **File Description**
 
-1. **`Tugas Rekrutment Data Engineer Badr Interactive.docx`**:
-   - Contains the task description and requirements.
-2. **`data_mart_etl_dag.py`**:
+1. **`data_mart_etl_dag.py`**:
    - Implements the ETL workflow using Apache Airflow.
-3. **`Datamart Design.drawio.png`**:
+2. **`Datamart Design.drawio.png`**:
    - Visual representation of the datamart schema.
-4. **`datamart_ddl.sql`**:
+3. **`datamart_ddl.sql`**:
    - SQL script for creating the dimensional schema.
-5. **`query.sql`**:
+4. **`query.sql`**:
    - SQL queries to generate required dashboard metrics.
 
 ---
@@ -178,6 +219,7 @@ The script ensures:
 2. **Deploy DAG**:
    - Place `data_mart_etl_dag.py` in the Airflow DAGs folder.
    - Start the Airflow scheduler and webserver.
+   - Don't forget to set the connection strings as variables
 
 3. **Run ETL**:
    - Trigger the DAG via the Airflow UI or CLI.
@@ -186,12 +228,13 @@ The script ensures:
    - Check the PostgreSQL datamart to ensure data consistency.
 
 5. **Query Dashboard Metrics**:
-   - Execute queries in `query.sql` to generate dashboard outputs.
+   - Execute queries in `query.sql` to generate dashboard outputs via DBeaver.
 
 ---
 
 ## **Assumptions**
 
+- The extraction query relies on inner joins to ensure data is standardized and complete, avoiding issues with null values. This approach assumes all entities, materials, and activities in the source data are correctly linked and valid.
 - Data integrity in the source database is maintained (e.g., no missing foreign key references).
 - No major schema changes in the source database.
 
@@ -199,4 +242,4 @@ The script ensures:
 
 ## **Contact**
 
-For any issues or inquiries regarding this implementation, please contact [Your Name/Email].
+For any issues or inquiries regarding this implementation, please contact [Al Fatih MHD Auliabin/alfatihauliabin46@gmail.com].
